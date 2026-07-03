@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "film-scanner"
+version = "0.1.0"
+description = "Frame-by-frame 8 mm film digitization system for Raspberry Pi"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+pi = [
+  "picamera2>=0.3",
+  "RPi.GPIO>=0.7",
+  "Pillow>=10",
+]
+vision = [
+  "opencv-python>=4.8",
+  "numpy>=1.24",
+]
+
+[project.scripts]
+film-scanner = "film_scanner.cli:main"
+film-scanner-ui = "film_scanner.ui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

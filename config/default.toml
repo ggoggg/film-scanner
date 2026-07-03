@@ -1,0 +1,36 @@
+[motor]
+step_pin = 17
+direction_pin = 27
+enable_pin = 22
+microstep_pins = []
+steps_per_frame = 240
+fine_step = 4
+speed_steps_per_second = 450
+acceleration_steps_per_second2 = 900
+settle_ms = 80
+
+[camera]
+resolution_width = 4056
+resolution_height = 3040
+preview_width = 960
+preview_height = 720
+exposure_us = 10000
+iso = 100
+white_balance = "auto"
+gain = 1.0
+format = "png"
+
+[alignment]
+tolerance_pixels = 3
+max_attempts = 12
+pixels_per_motor_step = 0.35
+coarse_search_steps = 32
+
+[scan]
+output_directory = "scans"
+naming_pattern = "frame_{frame:06d}"
+prevent_overwrite = true
+max_frames = 0
+
+[ui]
+refresh_ms = 250
