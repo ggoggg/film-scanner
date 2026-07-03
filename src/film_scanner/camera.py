@@ -19,8 +19,16 @@ class Camera:
                 from picamera2 import Picamera2  # type: ignore
 
                 self._camera = Picamera2()
+            except ModuleNotFoundError as exc:  # pragma: no cover - hardware dependent
+                LOG.warning(
+                    "Picamera2 is not installed. Falling back to simulated camera. "
+                    "Install the Raspberry Pi extras with 'python3 -m pip install -e \".[pi,vision]\"'. "
+                    "Original error: %s",
+                    exc,
+                )
+                self.simulated = True
             except Exception as exc:  # pragma: no cover - hardware dependent
-                LOG.warning("Picamera2 unavailable, using simulated camera: %s", exc)
+                LOG.warning("Picamera2 initialization failed, using simulated camera: %s", exc)
                 self.simulated = True
 
     def initialize(self) -> None:
