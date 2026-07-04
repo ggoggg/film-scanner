@@ -192,7 +192,12 @@ class FilmScannerApp(tk.Tk):
         preview = self.controller.capture_preview()
         try:
             from PIL import Image, ImageTk  # type: ignore
+        except ModuleNotFoundError as exc:
+            LOG.warning("Live preview display failed: Pillow is not installed: %s", exc)
+            self.preview_label.configure(text="Live preview unavailable. Install Pillow for image display.")
+            return
 
+        try:
             if hasattr(preview, "shape"):
                 image = Image.fromarray(preview)
             else:
@@ -203,8 +208,8 @@ class FilmScannerApp(tk.Tk):
             self.preview_image = ImageTk.PhotoImage(image)
             self.preview_label.configure(image=self.preview_image, text="")
         except Exception as exc:
-            LOG.warning("Live preview display failed: %s", exc)
-            self.preview_label.configure(text="Live preview unavailable. Install Pillow for image display.")
+            LOG.exception("Live preview display failed")
+            self.preview_label.configure(text=f"Live preview unavailable: {exc}")
 
     def _on_close(self) -> None:
         self.controller.shutdown()
