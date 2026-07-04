@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import Optional, Tuple
 
 from .config import AlignmentConfig
 
@@ -13,7 +14,7 @@ class FrameDetection:
     found: bool
     error_pixels: float
     confidence: float
-    frame_bounds: tuple[int, int, int, int] | None = None
+    frame_bounds: Optional[Tuple[int, int, int, int]] = None
     message: str = ""
 
 

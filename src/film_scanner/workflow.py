@@ -5,6 +5,7 @@ from enum import Enum
 import logging
 import threading
 import time
+from typing import Optional
 
 from .camera import Camera
 from .config import AppConfig
@@ -34,8 +35,8 @@ class ScanStatus:
     camera_status: str = "idle"
     alignment_status: str = "idle"
     message: str = "Ready"
-    started_at: float | None = None
-    completed_at: float | None = None
+    started_at: Optional[float] = None
+    completed_at: Optional[float] = None
     errors: list[str] = field(default_factory=list)
 
 
@@ -51,7 +52,7 @@ class ScannerController:
         self._lock = threading.RLock()
         self._pause = threading.Event()
         self._stop = threading.Event()
-        self._worker: threading.Thread | None = None
+        self._worker: Optional[threading.Thread] = None
         self._pause.set()
 
     def initialize(self) -> None:
@@ -89,7 +90,7 @@ class ScannerController:
                 errors=list(self.status.errors),
             )
 
-    def start(self, max_frames: int | None = None) -> None:
+    def start(self, max_frames: Optional[int] = None) -> None:
         if self._worker and self._worker.is_alive():
             return
         self._stop.clear()
@@ -136,7 +137,7 @@ class ScannerController:
     def capture_preview(self):
         return self.camera.capture_preview()
 
-    def _run_scan(self, max_frames: int | None) -> None:
+    def _run_scan(self, max_frames: Optional[int]) -> None:
         if self.status.state == ScanState.IDLE:
             self.initialize()
 

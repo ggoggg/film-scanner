@@ -3,9 +3,10 @@ from __future__ import annotations
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import logging
+from typing import Union
 
 
-def configure_logging(log_dir: str | Path = "logs") -> None:
+def configure_logging(log_dir: Union[str, Path] = "logs") -> None:
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s [%(name)s] %(message)s",

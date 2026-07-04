@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 try:
     import tomllib  # type: ignore
@@ -13,8 +14,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
 class MotorConfig:
     step_pin: int = 17
     direction_pin: int = 27
-    enable_pin: int | None = 22
-    microstep_pins: list[int] = field(default_factory=list)
+    enable_pin: Optional[int] = 22
+    microstep_pins: List[int] = field(default_factory=list)
     steps_per_frame: int = 240
     fine_step: int = 4
     speed_steps_per_second: float = 450.0
@@ -65,14 +66,14 @@ class AppConfig:
     ui: UIConfig = field(default_factory=UIConfig)
 
 
-def _merge_dataclass(instance: object, values: dict) -> object:
+def _merge_dataclass(instance: object, values: Dict[str, Any]) -> object:
     for key, value in values.items():
         if hasattr(instance, key):
             setattr(instance, key, value)
     return instance
 
 
-def load_config(path: str | Path | None = None) -> AppConfig:
+def load_config(path: Optional[Union[str, Path]] = None) -> AppConfig:
     config = AppConfig()
     if path is None:
         default_path = Path("config/default.toml")
@@ -94,9 +95,9 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     return config
 
 
-def _parse_simple_toml(text: str) -> dict:
-    parsed: dict[str, dict] = {}
-    current_section: dict | None = None
+def _parse_simple_toml(text: str) -> Dict[str, Dict[str, Any]]:
+    parsed: Dict[str, Dict[str, Any]] = {}
+    current_section: Optional[Dict[str, Any]] = None
     for raw_line in text.splitlines():
         line = raw_line.split("#", 1)[0].strip()
         if not line:

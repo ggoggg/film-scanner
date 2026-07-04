@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import time
+from typing import Optional
 
 from .config import MotorConfig
 
@@ -73,7 +74,7 @@ class StepperMotor:
             simulated=self.simulated,
         )
 
-    def jog(self, direction: Direction, steps: int | None = None) -> None:
+    def jog(self, direction: Direction, steps: Optional[int] = None) -> None:
         self.move_steps(direction.value * (steps or self.config.fine_step))
 
     def advance_frame(self) -> None:
