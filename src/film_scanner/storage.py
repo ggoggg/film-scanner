@@ -12,10 +12,12 @@ class ImageStore:
         self.root = Path(scan_config.output_directory)
 
     def prepare(self) -> Path:
+        self.root = Path(self.scan_config.output_directory)
         self.root.mkdir(parents=True, exist_ok=True)
         return self.root
 
     def path_for_frame(self, frame_number: int) -> Path:
+        self.root = Path(self.scan_config.output_directory)
         suffix = self.camera_config.format.lower().lstrip(".")
         base_name = self.scan_config.naming_pattern.format(frame=frame_number)
         candidate = self.root / f"{base_name}.{suffix}"

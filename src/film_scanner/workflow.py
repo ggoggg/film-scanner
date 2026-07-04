@@ -146,6 +146,24 @@ class ScannerController:
     def capture_preview(self):
         return self.camera.capture_preview()
 
+    def capture_single(self) -> str:
+        if not self._initialized:
+            self.initialize()
+
+        next_frame = self.status.frame_number + 1
+        destination = self.store.path_for_frame(next_frame)
+        with self._lock:
+            self.status.camera_status = "capturing"
+            self.status.message = "Capturing frame"
+        self.camera.capture_still(destination)
+        with self._lock:
+            self.status.frame_number = next_frame
+            self.status.current_file = str(destination)
+            self.status.camera_status = self.camera.status
+            self.status.message = f"Captured frame {next_frame}"
+        LOG.info("Single frame %s saved to %s", next_frame, destination)
+        return str(destination)
+
     def _run_scan(self, max_frames: int | None) -> None:
         try:
             if not self._initialized:

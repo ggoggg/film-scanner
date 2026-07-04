@@ -92,7 +92,12 @@ HTML = """<!doctype html>
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
-    button, input {
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+    button, input, select {
       min-height: 38px;
       border: 1px solid var(--line);
       border-radius: 6px;
@@ -107,6 +112,10 @@ HTML = """<!doctype html>
     button:hover { border-color: var(--accent); }
     button.danger:hover { border-color: var(--danger); }
     input {
+      width: 100%;
+      padding: 0 10px;
+    }
+    select {
       width: 100%;
       padding: 0 10px;
     }
@@ -137,14 +146,31 @@ HTML = """<!doctype html>
       <h1>Film Scanner</h1>
       <section class="grid" id="status"></section>
       <section>
+        <h2>Capture</h2>
+        <label>Output directory
+          <input id="outputDirectory" type="text">
+        </label>
+        <label>Naming pattern
+          <input id="namingPattern" type="text">
+        </label>
+        <label>Image format
+          <select id="imageFormat">
+            <option value="png">png</option>
+            <option value="tiff">tiff</option>
+            <option value="jpg">jpg</option>
+            <option value="jpeg">jpeg</option>
+          </select>
+        </label>
         <label>Max frames
           <input id="maxFrames" type="number" min="0" step="1" value="0">
         </label>
         <div class="controls">
           <button data-action="start">Start</button>
+          <button data-action="capture">Capture Frame</button>
           <button data-action="pause">Pause</button>
           <button data-action="resume">Resume</button>
           <button class="danger" data-action="stop">Stop</button>
+          <button data-action="apply-config">Apply</button>
         </div>
       </section>
       <section>
@@ -182,7 +208,14 @@ HTML = """<!doctype html>
     async function refreshStatus() {
       try {
         const response = await fetch("/api/status", { cache: "no-store" });
-        renderStatus(await response.json());
+        const data = await response.json();
+        renderStatus(data);
+        if (!document.activeElement || !["INPUT", "SELECT"].includes(document.activeElement.tagName)) {
+          document.getElementById("outputDirectory").value = data.config.scan.output_directory;
+          document.getElementById("namingPattern").value = data.config.scan.naming_pattern;
+          document.getElementById("imageFormat").value = data.config.camera.format;
+          document.getElementById("maxFrames").value = data.config.scan.max_frames;
+        }
       } catch (error) {
         messageEl.textContent = error;
       }
@@ -201,10 +234,30 @@ HTML = """<!doctype html>
 
     document.querySelectorAll("[data-action]").forEach((button) => {
       button.addEventListener("click", () => {
-        const maxFrames = Number(document.getElementById("maxFrames").value || 0);
-        post(`/api/${button.dataset.action}`, { max_frames: maxFrames });
+        const action = button.dataset.action;
+        const config = captureConfig();
+        if (action === "apply-config") {
+          post("/api/config", config);
+        } else if (action === "start") {
+          post("/api/start", config);
+        } else {
+          post(`/api/${action}`, {});
+        }
       });
     });
+
+    function captureConfig() {
+      return {
+        scan: {
+          output_directory: document.getElementById("outputDirectory").value,
+          naming_pattern: document.getElementById("namingPattern").value,
+          max_frames: Number(document.getElementById("maxFrames").value || 0)
+        },
+        camera: {
+          format: document.getElementById("imageFormat").value
+        }
+      };
+    }
 
     document.querySelectorAll("[data-jog]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -253,7 +306,8 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path == "/api/start":
                 body = self._read_json()
-                max_frames = int(body.get("max_frames") or 0) or None
+                self._apply_config(body)
+                max_frames = int(body.get("scan", {}).get("max_frames") or body.get("max_frames") or 0) or None
                 self.server.controller.start(max_frames=max_frames)
                 self._send_json({"message": "Scan started"})
                 return
@@ -269,6 +323,14 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 self.server.controller.stop()
                 self._send_json({"message": "Scan stop requested"})
                 return
+            if parsed.path == "/api/capture":
+                path = self.server.controller.capture_single()
+                self._send_json({"message": f"Captured {path}"})
+                return
+            if parsed.path == "/api/config":
+                self._apply_config(self._read_json())
+                self._send_json({"message": "Capture settings applied"})
+                return
             if parsed.path == "/api/jog":
                 body = self._read_json()
                 direction = Direction.REVERSE if body.get("direction") == "reverse" else Direction.FORWARD
@@ -280,6 +342,22 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
         self.send_error(HTTPStatus.NOT_FOUND)
+
+    def _apply_config(self, body: dict) -> None:
+        config = self.server.controller.config
+        scan = body.get("scan", {})
+        camera = body.get("camera", {})
+        if "output_directory" in scan:
+            config.scan.output_directory = str(scan["output_directory"])
+        if "naming_pattern" in scan:
+            config.scan.naming_pattern = str(scan["naming_pattern"])
+        if "max_frames" in scan:
+            config.scan.max_frames = int(scan["max_frames"] or 0)
+        if "format" in camera:
+            image_format = str(camera["format"]).lower()
+            if image_format not in {"png", "tiff", "jpg", "jpeg"}:
+                raise ValueError(f"Unsupported image format: {image_format}")
+            config.camera.format = image_format
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("content-length", "0"))
@@ -336,6 +414,16 @@ def _status_payload(controller: ScannerController) -> dict:
         "alignment_status": status.alignment_status,
         "message": status.message,
         "errors": status.errors,
+        "config": {
+            "scan": {
+                "output_directory": controller.config.scan.output_directory,
+                "naming_pattern": controller.config.scan.naming_pattern,
+                "max_frames": controller.config.scan.max_frames,
+            },
+            "camera": {
+                "format": controller.config.camera.format,
+            },
+        },
     }
 
 
