@@ -11,13 +11,13 @@ dependencies = []
 
 [project.optional-dependencies]
 pi = [
-  "picamera2>=0.3",
+  "picamera2>=0.1",
   "RPi.GPIO>=0.7",
-  "Pillow>=10",
+  "Pillow>=8",
 ]
 vision = [
-  "opencv-python>=4.8",
-  "numpy>=1.24",
+  "opencv-python>=4.0",
+  "numpy>=1.19",
 ]
 
 [project.scripts]
