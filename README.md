@@ -16,8 +16,9 @@ This repository contains an initial Python implementation for an automated Super
 ## Quick start on a development machine
 
 ```bash
-PYTHONPATH=src python3 -m film_scanner.cli --simulate --frames 5
-PYTHONPATH=src python3 -m film_scanner.ui --simulate
+python3 -m pip install -e .
+film-scanner --simulate --frames 5
+film-scanner-ui --simulate
 ```
 
 ## Quick start on Raspberry Pi

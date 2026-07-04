@@ -19,15 +19,15 @@ film-scanner-ui --config config/default.toml
 
 ## Development Machine
 
-Run in simulation mode from the repository:
+Install the package and run in simulation mode from the repository:
 
 ```bash
-PYTHONPATH=src python3 -m film_scanner.cli --simulate --frames 5
-PYTHONPATH=src python3 -m film_scanner.ui --simulate
+python3 -m pip install -e .
+film-scanner --simulate --frames 5
+film-scanner-ui --simulate
 ```
 
 Optional packages:
 
-- `Pillow` enables simulated PNG/TIFF image generation and UI preview display.
 - `opencv-python` and `numpy` enable real frame detection.
 - `pytest` runs the test suite.
