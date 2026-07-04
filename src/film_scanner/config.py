@@ -48,7 +48,7 @@ class AlignmentConfig:
 class ScanConfig:
     output_directory: str = "scans"
     naming_pattern: str = "frame_{frame:06d}"
-    prevent_overwrite: bool = True
+    prevent_overwrite: bool = False
     max_frames: int = 0
 
 

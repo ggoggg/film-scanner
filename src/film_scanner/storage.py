@@ -20,6 +20,13 @@ class ImageStore:
         base_name = self.scan_config.naming_pattern.format(frame=frame_number)
         candidate = self.root / f"{base_name}.{suffix}"
         if not self.scan_config.prevent_overwrite:
+            if candidate.exists():
+                counter = 1
+                while True:
+                    alternate = self.root / f"{base_name}_{counter}.{suffix}"
+                    if not alternate.exists():
+                        return alternate
+                    counter += 1
             return candidate
         if candidate.exists():
             raise FileExistsError(f"Refusing to overwrite existing scan image: {candidate}")
