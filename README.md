@@ -26,12 +26,14 @@ film-scanner-ui --simulate
 Install Raspberry Pi camera packages, create a venv that can see them, then install the project:
 
 ```bash
-sudo apt install libcap-dev python3-libcamera python3-picamera2
+sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil.imagetk
 python3 -m venv --system-site-packages env
 source env/bin/activate
 python3 -m pip install -e ".[pi,vision]"
-film-scanner-ui --config config/default.toml
+film-scanner-web --config config/default.toml --host 0.0.0.0 --port 8080
 ```
+
+Open `http://<raspberry-pi-address>:8080` from a browser on the same network. The Tkinter UI is still available with `film-scanner-ui --config config/default.toml` when running from a graphical desktop session.
 
 The application automatically falls back to simulation mode if GPIO or camera libraries are unavailable. Use `--simulate` explicitly when testing without hardware.
 

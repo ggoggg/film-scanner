@@ -10,7 +10,13 @@
 
 ## Scanning
 
-Launch the UI from a graphical session on the Raspberry Pi desktop, through VNC, or through SSH with X forwarding enabled.
+Launch the web UI on the Raspberry Pi:
+
+```bash
+film-scanner-web --config config/default.toml --host 0.0.0.0 --port 8080
+```
+
+Open `http://<raspberry-pi-address>:8080` from a browser on the same network. The Tkinter UI is still available, but it must be launched from a graphical session on the Raspberry Pi desktop, through VNC, or through SSH with X forwarding enabled.
 
 1. Choose an empty output directory.
 2. Confirm image format and naming pattern.

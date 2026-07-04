@@ -52,15 +52,25 @@ class ScannerController:
         self._pause = threading.Event()
         self._stop = threading.Event()
         self._worker: threading.Thread | None = None
+        self._initialized = False
         self._pause.set()
 
     def initialize(self) -> None:
+        if self._initialized:
+            with self._lock:
+                self.status.state = ScanState.IDLE
+                self.status.motor_status = "ready"
+                self.status.camera_status = self.camera.status
+                self.status.message = "Ready"
+            return
+
         with self._lock:
             self.status.state = ScanState.INITIALIZING
             self.status.message = "Initializing hardware"
         self.store.prepare()
         self.motor.initialize()
         self.camera.initialize()
+        self._initialized = True
         with self._lock:
             self.status.state = ScanState.IDLE
             self.status.motor_status = "ready"
@@ -137,18 +147,18 @@ class ScannerController:
         return self.camera.capture_preview()
 
     def _run_scan(self, max_frames: int | None) -> None:
-        if self.status.state == ScanState.IDLE:
-            self.initialize()
-
-        frame_limit = max_frames or self.config.scan.max_frames
-        with self._lock:
-            self.status.state = ScanState.SCANNING
-            self.status.started_at = time.time()
-            self.status.completed_at = None
-            self.status.message = "Scanning"
-
-        LOG.info("Scan started")
         try:
+            if not self._initialized:
+                self.initialize()
+
+            frame_limit = max_frames or self.config.scan.max_frames
+            with self._lock:
+                self.status.state = ScanState.SCANNING
+                self.status.started_at = time.time()
+                self.status.completed_at = None
+                self.status.message = "Scanning"
+
+            LOG.info("Scan started")
             while not self._stop.is_set():
                 if frame_limit and self.status.frame_number >= frame_limit:
                     break

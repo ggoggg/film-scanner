@@ -23,6 +23,7 @@ vision = [
 [project.scripts]
 film-scanner = "film_scanner.cli:main"
 film-scanner-ui = "film_scanner.ui:main"
+film-scanner-web = "film_scanner.web_ui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

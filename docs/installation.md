@@ -8,7 +8,7 @@
 
 ```bash
 sudo apt update
-sudo apt install libcap-dev python3-libcamera python3-picamera2
+sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil.imagetk
 ```
 
 4. Create a virtual environment that can see Raspberry Pi OS camera bindings:
@@ -30,13 +30,15 @@ If a large wheel download times out, rerun the install with download resumption 
 python3 -m pip install --resume-retries 5 --timeout 120 -e ".[pi,vision]"
 ```
 
-6. Launch the UI:
+6. Launch the web UI:
 
 ```bash
-film-scanner-ui --config config/default.toml
+film-scanner-web --config config/default.toml --host 0.0.0.0 --port 8080
 ```
 
-The UI needs a graphical display. Run it from the Raspberry Pi desktop terminal, a VNC session, or an SSH session with X forwarding enabled.
+Open `http://<raspberry-pi-address>:8080` from a browser on the same network.
+
+The Tkinter UI is also available with `film-scanner-ui --config config/default.toml`. It needs a graphical display, so run it from the Raspberry Pi desktop terminal, a VNC session, or an SSH session with X forwarding enabled.
 
 ## Development Machine
 

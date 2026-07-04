@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 import logging
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -23,6 +24,12 @@ class FilmScannerApp(tk.Tk):
         self.config_data = config
         self.controller = ScannerController(config, simulate=simulate)
         self.preview_image = None
+        self._preview_stats_logged = False
+        self._preview_lock = threading.Lock()
+        self._preview_in_flight = False
+        self._pending_preview = None
+        self._pending_preview_error: Exception | None = None
+        self._closing = False
         self.vars: dict[str, tk.StringVar] = {}
 
         self._build_layout()
@@ -184,22 +191,71 @@ class FilmScannerApp(tk.Tk):
         for key, value in values.items():
             self.status_labels[key].configure(text=value or "-")
 
+        self._display_pending_preview()
         if status.state not in {ScanState.ERROR, ScanState.STOPPING}:
-            self._refresh_preview()
+            self._request_preview()
         self.after(self.config_data.ui.refresh_ms, self._refresh)
 
-    def _refresh_preview(self) -> None:
-        preview = self.controller.capture_preview()
+    def _request_preview(self) -> None:
+        with self._preview_lock:
+            if self._preview_in_flight or self._closing:
+                return
+            self._preview_in_flight = True
+
+        thread = threading.Thread(target=self._capture_preview_background, name="film-preview", daemon=True)
+        thread.start()
+
+    def _capture_preview_background(self) -> None:
+        preview = None
+        error = None
+        try:
+            preview = self.controller.capture_preview()
+        except Exception as exc:  # pragma: no cover - hardware dependent
+            LOG.exception("Live preview capture failed")
+            error = exc
+        with self._preview_lock:
+            self._pending_preview = preview
+            self._pending_preview_error = error
+            self._preview_in_flight = False
+
+    def _display_pending_preview(self) -> None:
+        with self._preview_lock:
+            preview = self._pending_preview
+            error = self._pending_preview_error
+            self._pending_preview = None
+            self._pending_preview_error = None
+
+        if error is not None:
+            self.preview_label.configure(text=f"Live preview capture failed: {error}")
+            return
+        if preview is None:
+            return
+
         try:
             from PIL import Image, ImageTk  # type: ignore
-        except ModuleNotFoundError as exc:
-            LOG.warning("Live preview display failed: Pillow is not installed: %s", exc)
-            self.preview_label.configure(text="Live preview unavailable. Install Pillow for image display.")
+        except (ImportError, ModuleNotFoundError) as exc:
+            LOG.warning("Live preview display failed: Pillow ImageTk support is not available: %s", exc)
+            self.preview_label.configure(text="Live preview unavailable. Install Pillow ImageTk support.")
             return
 
         try:
             if hasattr(preview, "shape"):
-                image = Image.fromarray(preview)
+                if not self._preview_stats_logged:
+                    LOG.info(
+                        "Preview frame received: shape=%s dtype=%s min=%s max=%s mean=%.1f",
+                        getattr(preview, "shape", None),
+                        getattr(preview, "dtype", None),
+                        preview.min(),
+                        preview.max(),
+                        float(preview.mean()),
+                    )
+                    self._preview_stats_logged = True
+                if len(preview.shape) == 3 and preview.shape[2] == 4:
+                    image = Image.fromarray(preview[:, :, 2::-1], "RGB")
+                elif len(preview.shape) == 3 and preview.shape[2] == 3:
+                    image = Image.fromarray(preview)
+                else:
+                    image = Image.fromarray(preview)
             else:
                 image = Image.new("RGB", (640, 480), (35, 35, 35))
             width = max(self.preview_label.winfo_width(), 320)
@@ -212,6 +268,7 @@ class FilmScannerApp(tk.Tk):
             self.preview_label.configure(text=f"Live preview unavailable: {exc}")
 
     def _on_close(self) -> None:
+        self._closing = True
         self.controller.shutdown()
         self.destroy()
 

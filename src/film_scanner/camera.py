@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 import logging
+import threading
 
 from .config import CameraConfig
 
@@ -14,6 +15,9 @@ class Camera:
         self.config = config
         self.simulated = simulate
         self._camera = None
+        self._started = False
+        self._preview_stats_logged = False
+        self._lock = threading.RLock()
         if not simulate:
             try:
                 from picamera2 import Picamera2  # type: ignore
@@ -41,33 +45,52 @@ class Camera:
         return "not initialized"
 
     def initialize(self) -> None:
-        if self._camera is not None:
-            preview = self._camera.create_preview_configuration(
-                main={"size": (self.config.preview_width, self.config.preview_height)}
-            )
-            self._camera.configure(preview)
-            self._camera.start()
+        with self._lock:
+            if self._camera is not None and not self._started:
+                preview = self._camera.create_preview_configuration(
+                    main={"size": (self.config.preview_width, self.config.preview_height), "format": "RGB888"}
+                )
+                self._camera.configure(preview)
+                self._camera.start()
+                self._started = True
         LOG.info("Camera initialized")
 
     def shutdown(self) -> None:
-        if self._camera is not None:
-            self._camera.stop()
+        with self._lock:
+            if self._camera is not None and self._started:
+                self._camera.stop()
+                self._started = False
         LOG.info("Camera shut down")
 
     def capture_preview(self):
-        if self._camera is not None:
-            return self._camera.capture_array()
-        return self._synthetic_image(self.config.preview_width, self.config.preview_height)
+        with self._lock:
+            if self._camera is not None:
+                preview = self._camera.capture_array()
+            else:
+                preview = self._synthetic_image(self.config.preview_width, self.config.preview_height)
+
+        if not self._preview_stats_logged and hasattr(preview, "shape"):
+            LOG.info(
+                "Preview frame captured: shape=%s dtype=%s min=%s max=%s mean=%.1f",
+                getattr(preview, "shape", None),
+                getattr(preview, "dtype", None),
+                preview.min(),
+                preview.max(),
+                float(preview.mean()),
+            )
+            self._preview_stats_logged = True
+        return preview
 
     def capture_still(self, destination: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if self._camera is not None:
-            still_config = self._camera.create_still_configuration(
-                main={"size": (self.config.resolution_width, self.config.resolution_height)}
-            )
-            self._camera.switch_mode_and_capture_file(still_config, str(destination))
-        else:
-            self._write_synthetic_file(destination)
+        with self._lock:
+            if self._camera is not None:
+                still_config = self._camera.create_still_configuration(
+                    main={"size": (self.config.resolution_width, self.config.resolution_height)}
+                )
+                self._camera.switch_mode_and_capture_file(still_config, str(destination))
+            else:
+                self._write_synthetic_file(destination)
         LOG.info("Captured image %s", destination)
         return destination
 
