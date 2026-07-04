@@ -23,9 +23,12 @@ film-scanner-ui --simulate
 
 ## Quick start on Raspberry Pi
 
-Install the project in editable mode with the Raspberry Pi extras:
+Install Raspberry Pi camera packages, create a venv that can see them, then install the project:
 
 ```bash
+sudo apt install libcap-dev python3-libcamera python3-picamera2
+python3 -m venv --system-site-packages env
+source env/bin/activate
 python3 -m pip install -e ".[pi,vision]"
 film-scanner-ui --config config/default.toml
 ```

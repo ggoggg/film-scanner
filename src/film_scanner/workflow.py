@@ -64,7 +64,7 @@ class ScannerController:
         with self._lock:
             self.status.state = ScanState.IDLE
             self.status.motor_status = "ready"
-            self.status.camera_status = "ready"
+            self.status.camera_status = self.camera.status
             self.status.message = "Ready"
 
     def shutdown(self) -> None:
@@ -178,7 +178,7 @@ class ScannerController:
                 with self._lock:
                     self.status.frame_number = next_frame
                     self.status.current_file = str(destination)
-                    self.status.camera_status = "ready"
+                    self.status.camera_status = self.camera.status
                     self.status.message = f"Captured frame {next_frame}"
                 LOG.info("Frame %s saved to %s", next_frame, destination)
         except Exception as exc:

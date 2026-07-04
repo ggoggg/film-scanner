@@ -10,6 +10,8 @@
 
 ## Scanning
 
+Launch the UI from a graphical session on the Raspberry Pi desktop, through VNC, or through SSH with X forwarding enabled.
+
 1. Choose an empty output directory.
 2. Confirm image format and naming pattern.
 3. Press Start.

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import logging
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -9,6 +11,8 @@ from .config import AppConfig, load_config
 from .logging_setup import configure_logging
 from .motor import Direction
 from .workflow import ScannerController, ScanState
+
+LOG = logging.getLogger(__name__)
 
 
 class FilmScannerApp(tk.Tk):
@@ -198,7 +202,8 @@ class FilmScannerApp(tk.Tk):
             image.thumbnail((width, height))
             self.preview_image = ImageTk.PhotoImage(image)
             self.preview_label.configure(image=self.preview_image, text="")
-        except Exception:
+        except Exception as exc:
+            LOG.warning("Live preview display failed: %s", exc)
             self.preview_label.configure(text="Live preview unavailable. Install Pillow for image display.")
 
     def _on_close(self) -> None:
@@ -212,7 +217,17 @@ def main() -> None:
     parser.add_argument("--simulate", action="store_true", help="Run without GPIO/camera hardware")
     args = parser.parse_args()
     configure_logging()
-    app = FilmScannerApp(load_config(args.config), simulate=args.simulate)
+    try:
+        app = FilmScannerApp(load_config(args.config), simulate=args.simulate)
+    except tk.TclError as exc:
+        message = (
+            "Could not open the Tkinter UI because no graphical display is available. "
+            "Run film-scanner-ui from the Raspberry Pi desktop terminal, connect with VNC, "
+            "or SSH with X forwarding enabled."
+        )
+        LOG.error("%s Original error: %s", message, exc)
+        print(message, file=sys.stderr)
+        raise SystemExit(1) from exc
     app.mainloop()
 
 

@@ -22,7 +22,8 @@ class Camera:
             except ModuleNotFoundError as exc:  # pragma: no cover - hardware dependent
                 LOG.warning(
                     "Picamera2 is not installed. Falling back to simulated camera. "
-                    "Install the Raspberry Pi extras with 'python3 -m pip install -e \".[pi,vision]\"'. "
+                    "Install Raspberry Pi camera packages with apt and create the venv with "
+                    "--system-site-packages so python3-picamera2 and python3-libcamera are visible. "
                     "Original error: %s",
                     exc,
                 )
@@ -30,6 +31,14 @@ class Camera:
             except Exception as exc:  # pragma: no cover - hardware dependent
                 LOG.warning("Picamera2 initialization failed, using simulated camera: %s", exc)
                 self.simulated = True
+
+    @property
+    def status(self) -> str:
+        if self._camera is not None:
+            return "ready (picamera2)"
+        if self.simulated:
+            return "simulated"
+        return "not initialized"
 
     def initialize(self) -> None:
         if self._camera is not None:

@@ -18,4 +18,4 @@ def test_camera_reports_missing_picamera2_install_hint(monkeypatch, caplog) -> N
         camera = Camera(CameraConfig())
 
     assert camera.simulated is True
-    assert "python3 -m pip install -e '.[pi,vision]'" in caplog.text
+    assert "python3-picamera2 and python3-libcamera" in caplog.text
