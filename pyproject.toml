@@ -18,8 +18,8 @@ pi-camera = [
   "picamera2>=0.1",
 ]
 vision = [
-  "opencv-python>=4.0",
-  "numpy>=1.19",
+  "opencv-python-headless>=4.5.1.48",
+  "numpy>=1.19,<1.22",
 ]
 
 [project.scripts]
