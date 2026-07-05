@@ -9,12 +9,11 @@ import io
 import json
 import logging
 import threading
-import time
 
 from .config import AppConfig, load_config
 from .logging_setup import configure_logging
 from .motor import Direction
-from .workflow import ScannerController
+from .workflow import ScannerController, ScanState
 
 LOG = logging.getLogger(__name__)
 
@@ -507,11 +506,13 @@ class FilmScannerWebServer(ThreadingHTTPServer):
         super().__init__(address, FilmScannerWebHandler)
         self.controller = ScannerController(config, simulate=simulate)
         self._preview_lock = threading.Lock()
+        self._preview_condition = threading.Condition()
         self._preview_jpeg: bytes | None = None
         self._preview_error: str | None = "Preview is starting"
         self._preview_stop = threading.Event()
         self._preview_thread: threading.Thread | None = None
-        self._preview_pause_until = 0.0
+        self._preview_paused = False
+        self._preview_active = False
 
     def start_preview(self) -> None:
         if self._preview_thread is not None and self._preview_thread.is_alive():
@@ -522,6 +523,8 @@ class FilmScannerWebServer(ThreadingHTTPServer):
 
     def stop_preview(self) -> None:
         self._preview_stop.set()
+        with self._preview_condition:
+            self._preview_condition.notify_all()
         if self._preview_thread is not None:
             self._preview_thread.join(timeout=2)
 
@@ -530,17 +533,25 @@ class FilmScannerWebServer(ThreadingHTTPServer):
             return self._preview_jpeg, self._preview_error
 
     def with_preview_paused(self, callback):
-        with self._preview_lock:
-            self._preview_pause_until = time.monotonic() + 1.0
-        return callback()
+        with self._preview_condition:
+            self._preview_paused = True
+            while self._preview_active and not self._preview_stop.is_set():
+                self._preview_condition.wait(timeout=0.1)
+        try:
+            return callback()
+        finally:
+            with self._preview_condition:
+                self._preview_paused = False
+                self._preview_condition.notify_all()
 
     def _preview_loop(self) -> None:
         while not self._preview_stop.is_set():
-            with self._preview_lock:
-                pause_for = self._preview_pause_until - time.monotonic()
-            if pause_for > 0:
-                self._preview_stop.wait(min(pause_for, 0.25))
-                continue
+            with self._preview_condition:
+                while self._should_pause_preview() and not self._preview_stop.is_set():
+                    self._preview_condition.wait(timeout=0.25)
+                if self._preview_stop.is_set():
+                    break
+                self._preview_active = True
             try:
                 jpeg = _preview_jpeg(self.controller)
             except Exception as exc:  # pragma: no cover - hardware dependent
@@ -551,7 +562,16 @@ class FilmScannerWebServer(ThreadingHTTPServer):
                 with self._preview_lock:
                     self._preview_jpeg = jpeg
                     self._preview_error = None
+            finally:
+                with self._preview_condition:
+                    self._preview_active = False
+                    self._preview_condition.notify_all()
             self._preview_stop.wait(0.5)
+
+    def _should_pause_preview(self) -> bool:
+        if self._preview_paused:
+            return True
+        return self.controller.snapshot().state in {ScanState.SCANNING, ScanState.STOPPING}
 
 
 def _status_payload(controller: ScannerController) -> dict:
