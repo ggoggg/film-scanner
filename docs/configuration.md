@@ -43,6 +43,7 @@ Power the motor from an external supply through the ULN2003 board motor power in
 - `frame_guide_x`, `frame_guide_y`, `frame_guide_width`, `frame_guide_height`: preview overlay rectangle used to calibrate expected frame position.
 - `perf_roi_x`, `perf_roi_y`, `perf_roi_width`, `perf_roi_height`: preview overlay region for perforation detection calibration.
 - `perf_target_y`: preview overlay horizontal target line for the perforation center.
+- `super8_perf_x`, `super8_perf_y`, `super8_perf_width`, `super8_perf_height`: preview overlay marker for the expected Super 8 perforation position.
 
 ## Scan
 

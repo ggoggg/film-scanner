@@ -51,6 +51,10 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
                 "perf_roi_width": 50,
                 "perf_roi_height": 60,
                 "perf_target_y": 70,
+                "super8_perf_x": 80,
+                "super8_perf_y": 90,
+                "super8_perf_width": 100,
+                "super8_perf_height": 110,
             },
         }
     )
@@ -66,6 +70,8 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
     assert controller.config.alignment.frame_guide_width == 300
     assert controller.config.alignment.perf_roi_x == 30
     assert controller.config.alignment.perf_target_y == 70
+    assert controller.config.alignment.super8_perf_x == 80
+    assert controller.config.alignment.super8_perf_height == 110
 
     status = _status_payload(controller)
     assert status["config"]["motor"]["steps_per_frame"] == 321
@@ -73,3 +79,4 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
     assert status["config"]["alignment"]["coarse_search_steps"] == 16
     assert status["config"]["alignment"]["frame_guide_height"] == 400
     assert status["config"]["alignment"]["perf_roi_height"] == 60
+    assert status["config"]["alignment"]["super8_perf_width"] == 100

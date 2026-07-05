@@ -83,7 +83,8 @@ HTML = """<!doctype html>
       border: 1px solid var(--line);
     }
     .preview canvas {
-      pointer-events: none;
+      pointer-events: auto;
+      touch-action: none;
     }
     aside {
       border-left: 1px solid var(--line);
@@ -291,6 +292,18 @@ HTML = """<!doctype html>
           <label>Perf target Y
             <input id="perfTargetY" type="number" min="0" step="1">
           </label>
+          <label>Super 8 X
+            <input id="super8PerfX" type="number" min="0" step="1">
+          </label>
+          <label>Super 8 Y
+            <input id="super8PerfY" type="number" min="0" step="1">
+          </label>
+          <label>Super 8 W
+            <input id="super8PerfWidth" type="number" min="1" step="1">
+          </label>
+          <label>Super 8 H
+            <input id="super8PerfHeight" type="number" min="1" step="1">
+          </label>
         </div>
       </section>
       <section>
@@ -310,6 +323,7 @@ HTML = """<!doctype html>
     const previewEl = document.getElementById("preview");
     const overlayEl = document.getElementById("overlay");
     let overlayConfig = null;
+    let overlayDrag = null;
     const fields = [
       ["state", "State"],
       ["frame_number", "Frame"],
@@ -353,6 +367,10 @@ HTML = """<!doctype html>
           document.getElementById("perfRoiWidth").value = data.config.alignment.perf_roi_width;
           document.getElementById("perfRoiHeight").value = data.config.alignment.perf_roi_height;
           document.getElementById("perfTargetY").value = data.config.alignment.perf_target_y;
+          document.getElementById("super8PerfX").value = data.config.alignment.super8_perf_x;
+          document.getElementById("super8PerfY").value = data.config.alignment.super8_perf_y;
+          document.getElementById("super8PerfWidth").value = data.config.alignment.super8_perf_width;
+          document.getElementById("super8PerfHeight").value = data.config.alignment.super8_perf_height;
         }
         overlayConfig = data.config;
         drawOverlay();
@@ -416,7 +434,11 @@ HTML = """<!doctype html>
           perf_roi_y: Number(document.getElementById("perfRoiY").value || 0),
           perf_roi_width: Number(document.getElementById("perfRoiWidth").value || 1),
           perf_roi_height: Number(document.getElementById("perfRoiHeight").value || 1),
-          perf_target_y: Number(document.getElementById("perfTargetY").value || 0)
+          perf_target_y: Number(document.getElementById("perfTargetY").value || 0),
+          super8_perf_x: Number(document.getElementById("super8PerfX").value || 0),
+          super8_perf_y: Number(document.getElementById("super8PerfY").value || 0),
+          super8_perf_width: Number(document.getElementById("super8PerfWidth").value || 1),
+          super8_perf_height: Number(document.getElementById("super8PerfHeight").value || 1)
         }
       };
     }
@@ -454,6 +476,7 @@ HTML = """<!doctype html>
       line(0, overlayEl.height / 2, overlayEl.width, overlayEl.height / 2, "rgba(105, 183, 255, 0.75)");
       rectLine(a.frame_guide_x, a.frame_guide_y, a.frame_guide_width, a.frame_guide_height, "rgba(0, 255, 150, 0.9)");
       rectLine(a.perf_roi_x, a.perf_roi_y, a.perf_roi_width, a.perf_roi_height, "rgba(255, 215, 0, 0.9)");
+      rectLine(a.super8_perf_x, a.super8_perf_y, a.super8_perf_width, a.super8_perf_height, "rgba(255, 70, 255, 0.95)");
       line(
         a.perf_roi_x * scaleX,
         a.perf_target_y * scaleY,
@@ -461,7 +484,196 @@ HTML = """<!doctype html>
         a.perf_target_y * scaleY,
         "rgba(255, 80, 80, 0.95)"
       );
+      const super8CenterX = (a.super8_perf_x + a.super8_perf_width / 2) * scaleX;
+      const super8CenterY = (a.super8_perf_y + a.super8_perf_height / 2) * scaleY;
+      line(super8CenterX - 12, super8CenterY, super8CenterX + 12, super8CenterY, "rgba(255, 70, 255, 0.95)");
+      line(super8CenterX, super8CenterY - 12, super8CenterX, super8CenterY + 12, "rgba(255, 70, 255, 0.95)");
     }
+
+    const overlayShapes = [
+      {
+        name: "frame",
+        x: "frame_guide_x",
+        y: "frame_guide_y",
+        w: "frame_guide_width",
+        h: "frame_guide_height",
+        inputX: "frameGuideX",
+        inputY: "frameGuideY",
+        inputW: "frameGuideWidth",
+        inputH: "frameGuideHeight"
+      },
+      {
+        name: "perf",
+        x: "perf_roi_x",
+        y: "perf_roi_y",
+        w: "perf_roi_width",
+        h: "perf_roi_height",
+        inputX: "perfRoiX",
+        inputY: "perfRoiY",
+        inputW: "perfRoiWidth",
+        inputH: "perfRoiHeight"
+      },
+      {
+        name: "super8",
+        x: "super8_perf_x",
+        y: "super8_perf_y",
+        w: "super8_perf_width",
+        h: "super8_perf_height",
+        inputX: "super8PerfX",
+        inputY: "super8PerfY",
+        inputW: "super8PerfWidth",
+        inputH: "super8PerfHeight"
+      }
+    ];
+
+    function overlayPoint(event) {
+      const rect = overlayEl.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * (previewEl.naturalWidth / Math.max(rect.width, 1)),
+        y: (event.clientY - rect.top) * (previewEl.naturalHeight / Math.max(rect.height, 1))
+      };
+    }
+
+    function hitOverlayShape(point) {
+      if (!overlayConfig || !previewEl.naturalWidth) {
+        return null;
+      }
+      const handle = 14 * (previewEl.naturalWidth / Math.max(overlayEl.width, 1));
+      const a = overlayConfig.alignment;
+      for (const shape of overlayShapes.slice().reverse()) {
+        const x = a[shape.x];
+        const y = a[shape.y];
+        const w = a[shape.w];
+        const h = a[shape.h];
+        const corners = [
+          ["nw", x, y],
+          ["ne", x + w, y],
+          ["sw", x, y + h],
+          ["se", x + w, y + h]
+        ];
+        for (const [mode, cx, cy] of corners) {
+          if (Math.abs(point.x - cx) <= handle && Math.abs(point.y - cy) <= handle) {
+            return { shape, mode };
+          }
+        }
+        if (point.x >= x && point.x <= x + w && point.y >= y && point.y <= y + h) {
+          return { shape, mode: "move" };
+        }
+      }
+      return null;
+    }
+
+    function updateOverlayInputs(shape) {
+      const a = overlayConfig.alignment;
+      document.getElementById(shape.inputX).value = Math.round(a[shape.x]);
+      document.getElementById(shape.inputY).value = Math.round(a[shape.y]);
+      document.getElementById(shape.inputW).value = Math.round(a[shape.w]);
+      document.getElementById(shape.inputH).value = Math.round(a[shape.h]);
+    }
+
+    function applyOverlayDrag(event) {
+      if (!overlayDrag || !overlayConfig) {
+        return;
+      }
+      const point = overlayPoint(event);
+      const dx = point.x - overlayDrag.startPoint.x;
+      const dy = point.y - overlayDrag.startPoint.y;
+      const a = overlayConfig.alignment;
+      const shape = overlayDrag.shape;
+      let x = overlayDrag.start.x;
+      let y = overlayDrag.start.y;
+      let w = overlayDrag.start.w;
+      let h = overlayDrag.start.h;
+
+      if (overlayDrag.mode === "move") {
+        x += dx;
+        y += dy;
+      } else {
+        if (overlayDrag.mode.includes("n")) {
+          y += dy;
+          h -= dy;
+        }
+        if (overlayDrag.mode.includes("s")) {
+          h += dy;
+        }
+        if (overlayDrag.mode.includes("w")) {
+          x += dx;
+          w -= dx;
+        }
+        if (overlayDrag.mode.includes("e")) {
+          w += dx;
+        }
+      }
+
+      w = Math.max(Math.round(w), 1);
+      h = Math.max(Math.round(h), 1);
+      x = Math.max(Math.round(x), 0);
+      y = Math.max(Math.round(y), 0);
+      a[shape.x] = x;
+      a[shape.y] = y;
+      a[shape.w] = w;
+      a[shape.h] = h;
+      updateOverlayInputs(shape);
+      drawOverlay();
+    }
+
+    overlayEl.addEventListener("pointerdown", (event) => {
+      if (!document.getElementById("showOverlay").checked) {
+        return;
+      }
+      const point = overlayPoint(event);
+      const hit = hitOverlayShape(point);
+      if (!hit) {
+        return;
+      }
+      const a = overlayConfig.alignment;
+      overlayDrag = {
+        shape: hit.shape,
+        mode: hit.mode,
+        startPoint: point,
+        start: {
+          x: a[hit.shape.x],
+          y: a[hit.shape.y],
+          w: a[hit.shape.w],
+          h: a[hit.shape.h]
+        }
+      };
+      overlayEl.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    overlayEl.addEventListener("pointermove", (event) => {
+      if (!overlayDrag) {
+        const hit = hitOverlayShape(overlayPoint(event));
+        overlayEl.style.cursor = hit ? (hit.mode === "move" ? "move" : `${hit.mode}-resize`) : "default";
+        return;
+      }
+      applyOverlayDrag(event);
+      event.preventDefault();
+    });
+
+    overlayEl.addEventListener("pointerup", (event) => {
+      if (overlayDrag) {
+        applyOverlayDrag(event);
+      }
+      overlayDrag = null;
+      overlayEl.releasePointerCapture(event.pointerId);
+    });
+
+    overlayEl.addEventListener("pointercancel", () => {
+      overlayDrag = null;
+    });
+
+    [
+      "frameGuideX", "frameGuideY", "frameGuideWidth", "frameGuideHeight",
+      "perfRoiX", "perfRoiY", "perfRoiWidth", "perfRoiHeight", "perfTargetY",
+      "super8PerfX", "super8PerfY", "super8PerfWidth", "super8PerfHeight"
+    ].forEach((id) => {
+      document.getElementById(id).addEventListener("input", () => {
+        overlayConfig = scannerConfig();
+        drawOverlay();
+      });
+    });
 
     document.querySelectorAll("[data-jog]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -597,10 +809,19 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             "perf_roi_x",
             "perf_roi_y",
             "perf_target_y",
+            "super8_perf_x",
+            "super8_perf_y",
         ):
             if key in alignment:
                 setattr(config.alignment, key, max(int(alignment[key]), 0))
-        for key in ("frame_guide_width", "frame_guide_height", "perf_roi_width", "perf_roi_height"):
+        for key in (
+            "frame_guide_width",
+            "frame_guide_height",
+            "perf_roi_width",
+            "perf_roi_height",
+            "super8_perf_width",
+            "super8_perf_height",
+        ):
             if key in alignment:
                 setattr(config.alignment, key, max(int(alignment[key]), 1))
 
@@ -753,6 +974,10 @@ def _status_payload(controller: ScannerController) -> dict:
                 "perf_roi_width": controller.config.alignment.perf_roi_width,
                 "perf_roi_height": controller.config.alignment.perf_roi_height,
                 "perf_target_y": controller.config.alignment.perf_target_y,
+                "super8_perf_x": controller.config.alignment.super8_perf_x,
+                "super8_perf_y": controller.config.alignment.super8_perf_y,
+                "super8_perf_width": controller.config.alignment.super8_perf_width,
+                "super8_perf_height": controller.config.alignment.super8_perf_height,
             },
         },
     }

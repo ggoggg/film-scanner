@@ -37,6 +37,10 @@ perf_roi_y = 120
 perf_roi_width = 180
 perf_roi_height = 480
 perf_target_y = 360
+super8_perf_x = 55
+super8_perf_y = 320
+super8_perf_width = 55
+super8_perf_height = 80
 
 [scan]
 output_directory = "scans"

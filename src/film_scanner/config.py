@@ -53,6 +53,10 @@ class AlignmentConfig:
     perf_roi_width: int = 180
     perf_roi_height: int = 480
     perf_target_y: int = 360
+    super8_perf_x: int = 55
+    super8_perf_y: int = 320
+    super8_perf_width: int = 55
+    super8_perf_height: int = 80
 
 
 @dataclass
