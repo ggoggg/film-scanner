@@ -28,6 +28,15 @@ tolerance_pixels = 3
 max_attempts = 12
 pixels_per_motor_step = 0.35
 coarse_search_steps = 32
+frame_guide_x = 240
+frame_guide_y = 120
+frame_guide_width = 480
+frame_guide_height = 480
+perf_roi_x = 0
+perf_roi_y = 120
+perf_roi_width = 180
+perf_roi_height = 480
+perf_target_y = 360
 
 [scan]
 output_directory = "scans"

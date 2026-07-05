@@ -63,13 +63,27 @@ HTML = """<!doctype html>
       background: #050607;
       padding: 16px;
     }
-    .preview img {
-      display: block;
+    .preview-stage {
+      position: relative;
+      display: grid;
+      place-items: center;
       width: min(100%, 1280px);
       max-height: calc(100vh - 32px);
+    }
+    .preview img,
+    .preview canvas {
+      grid-area: 1 / 1;
+      display: block;
+      max-width: 100%;
+      max-height: calc(100vh - 32px);
       object-fit: contain;
+    }
+    .preview img {
       background: #000;
       border: 1px solid var(--line);
+    }
+    .preview canvas {
+      pointer-events: none;
     }
     aside {
       border-left: 1px solid var(--line);
@@ -147,6 +161,11 @@ HTML = """<!doctype html>
       width: auto;
       min-height: 0;
     }
+    .compact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 8px;
+    }
     .message {
       min-height: 22px;
       color: var(--accent);
@@ -177,7 +196,10 @@ HTML = """<!doctype html>
 <body>
   <main>
     <div class="preview">
-      <img id="preview" alt="Live preview">
+      <div class="preview-stage">
+        <img id="preview" alt="Live preview">
+        <canvas id="overlay"></canvas>
+      </div>
     </div>
     <aside>
       <h1>Film Scanner</h1>
@@ -236,6 +258,42 @@ HTML = """<!doctype html>
         </label>
       </section>
       <section>
+        <h2>Overlay</h2>
+        <label class="checkbox">
+          <input id="showOverlay" type="checkbox" checked>
+          Show overlay
+        </label>
+        <div class="compact-grid">
+          <label>Frame X
+            <input id="frameGuideX" type="number" min="0" step="1">
+          </label>
+          <label>Frame Y
+            <input id="frameGuideY" type="number" min="0" step="1">
+          </label>
+          <label>Frame W
+            <input id="frameGuideWidth" type="number" min="1" step="1">
+          </label>
+          <label>Frame H
+            <input id="frameGuideHeight" type="number" min="1" step="1">
+          </label>
+          <label>Perf X
+            <input id="perfRoiX" type="number" min="0" step="1">
+          </label>
+          <label>Perf Y
+            <input id="perfRoiY" type="number" min="0" step="1">
+          </label>
+          <label>Perf W
+            <input id="perfRoiWidth" type="number" min="1" step="1">
+          </label>
+          <label>Perf H
+            <input id="perfRoiHeight" type="number" min="1" step="1">
+          </label>
+          <label>Perf target Y
+            <input id="perfTargetY" type="number" min="0" step="1">
+          </label>
+        </div>
+      </section>
+      <section>
         <div class="controls">
           <button data-jog="forward">Forward</button>
           <button data-jog="reverse">Reverse</button>
@@ -250,6 +308,8 @@ HTML = """<!doctype html>
     const statusEl = document.getElementById("status");
     const messageEl = document.getElementById("message");
     const previewEl = document.getElementById("preview");
+    const overlayEl = document.getElementById("overlay");
+    let overlayConfig = null;
     const fields = [
       ["state", "State"],
       ["frame_number", "Frame"],
@@ -284,7 +344,18 @@ HTML = """<!doctype html>
           document.getElementById("invertDirection").checked = data.config.motor.invert_direction;
           document.getElementById("pixelsPerMotorStep").value = data.config.alignment.pixels_per_motor_step;
           document.getElementById("coarseSearchSteps").value = data.config.alignment.coarse_search_steps;
+          document.getElementById("frameGuideX").value = data.config.alignment.frame_guide_x;
+          document.getElementById("frameGuideY").value = data.config.alignment.frame_guide_y;
+          document.getElementById("frameGuideWidth").value = data.config.alignment.frame_guide_width;
+          document.getElementById("frameGuideHeight").value = data.config.alignment.frame_guide_height;
+          document.getElementById("perfRoiX").value = data.config.alignment.perf_roi_x;
+          document.getElementById("perfRoiY").value = data.config.alignment.perf_roi_y;
+          document.getElementById("perfRoiWidth").value = data.config.alignment.perf_roi_width;
+          document.getElementById("perfRoiHeight").value = data.config.alignment.perf_roi_height;
+          document.getElementById("perfTargetY").value = data.config.alignment.perf_target_y;
         }
+        overlayConfig = data.config;
+        drawOverlay();
       } catch (error) {
         messageEl.textContent = error;
       }
@@ -336,9 +407,60 @@ HTML = """<!doctype html>
         },
         alignment: {
           pixels_per_motor_step: Number(document.getElementById("pixelsPerMotorStep").value || 0.001),
-          coarse_search_steps: Number(document.getElementById("coarseSearchSteps").value || 1)
+          coarse_search_steps: Number(document.getElementById("coarseSearchSteps").value || 1),
+          frame_guide_x: Number(document.getElementById("frameGuideX").value || 0),
+          frame_guide_y: Number(document.getElementById("frameGuideY").value || 0),
+          frame_guide_width: Number(document.getElementById("frameGuideWidth").value || 1),
+          frame_guide_height: Number(document.getElementById("frameGuideHeight").value || 1),
+          perf_roi_x: Number(document.getElementById("perfRoiX").value || 0),
+          perf_roi_y: Number(document.getElementById("perfRoiY").value || 0),
+          perf_roi_width: Number(document.getElementById("perfRoiWidth").value || 1),
+          perf_roi_height: Number(document.getElementById("perfRoiHeight").value || 1),
+          perf_target_y: Number(document.getElementById("perfTargetY").value || 0)
         }
       };
+    }
+
+    function drawOverlay() {
+      const ctx = overlayEl.getContext("2d");
+      const rect = previewEl.getBoundingClientRect();
+      overlayEl.width = Math.max(Math.round(rect.width), 1);
+      overlayEl.height = Math.max(Math.round(rect.height), 1);
+      overlayEl.style.width = `${rect.width}px`;
+      overlayEl.style.height = `${rect.height}px`;
+      ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+      if (!overlayConfig || !document.getElementById("showOverlay").checked || !previewEl.naturalWidth) {
+        return;
+      }
+
+      const scaleX = overlayEl.width / previewEl.naturalWidth;
+      const scaleY = overlayEl.height / previewEl.naturalHeight;
+      const a = overlayConfig.alignment;
+      const line = (x1, y1, x2, y2, color) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      };
+      const rectLine = (x, y, w, h, color) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x * scaleX, y * scaleY, w * scaleX, h * scaleY);
+      };
+
+      line(overlayEl.width / 2, 0, overlayEl.width / 2, overlayEl.height, "rgba(105, 183, 255, 0.75)");
+      line(0, overlayEl.height / 2, overlayEl.width, overlayEl.height / 2, "rgba(105, 183, 255, 0.75)");
+      rectLine(a.frame_guide_x, a.frame_guide_y, a.frame_guide_width, a.frame_guide_height, "rgba(0, 255, 150, 0.9)");
+      rectLine(a.perf_roi_x, a.perf_roi_y, a.perf_roi_width, a.perf_roi_height, "rgba(255, 215, 0, 0.9)");
+      line(
+        a.perf_roi_x * scaleX,
+        a.perf_target_y * scaleY,
+        (a.perf_roi_x + a.perf_roi_width) * scaleX,
+        a.perf_target_y * scaleY,
+        "rgba(255, 80, 80, 0.95)"
+      );
     }
 
     document.querySelectorAll("[data-jog]").forEach((button) => {
@@ -356,8 +478,13 @@ HTML = """<!doctype html>
       previewEl.src = `/preview.jpg?ts=${Date.now()}`;
     }
 
-    previewEl.addEventListener("load", () => setTimeout(refreshPreview, 750));
+    previewEl.addEventListener("load", () => {
+      drawOverlay();
+      setTimeout(refreshPreview, 750);
+    });
     previewEl.addEventListener("error", () => setTimeout(refreshPreview, 1000));
+    document.getElementById("showOverlay").addEventListener("change", drawOverlay);
+    window.addEventListener("resize", drawOverlay);
     refreshPreview();
     refreshStatus();
     setInterval(refreshStatus, 1000);
@@ -464,6 +591,18 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             config.alignment.pixels_per_motor_step = max(float(alignment["pixels_per_motor_step"]), 0.001)
         if "coarse_search_steps" in alignment:
             config.alignment.coarse_search_steps = max(int(alignment["coarse_search_steps"]), 1)
+        for key in (
+            "frame_guide_x",
+            "frame_guide_y",
+            "perf_roi_x",
+            "perf_roi_y",
+            "perf_target_y",
+        ):
+            if key in alignment:
+                setattr(config.alignment, key, max(int(alignment[key]), 0))
+        for key in ("frame_guide_width", "frame_guide_height", "perf_roi_width", "perf_roi_height"):
+            if key in alignment:
+                setattr(config.alignment, key, max(int(alignment[key]), 1))
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("content-length", "0"))
@@ -605,6 +744,15 @@ def _status_payload(controller: ScannerController) -> dict:
             "alignment": {
                 "pixels_per_motor_step": controller.config.alignment.pixels_per_motor_step,
                 "coarse_search_steps": controller.config.alignment.coarse_search_steps,
+                "frame_guide_x": controller.config.alignment.frame_guide_x,
+                "frame_guide_y": controller.config.alignment.frame_guide_y,
+                "frame_guide_width": controller.config.alignment.frame_guide_width,
+                "frame_guide_height": controller.config.alignment.frame_guide_height,
+                "perf_roi_x": controller.config.alignment.perf_roi_x,
+                "perf_roi_y": controller.config.alignment.perf_roi_y,
+                "perf_roi_width": controller.config.alignment.perf_roi_width,
+                "perf_roi_height": controller.config.alignment.perf_roi_height,
+                "perf_target_y": controller.config.alignment.perf_target_y,
             },
         },
     }

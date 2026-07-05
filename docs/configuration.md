@@ -40,6 +40,9 @@ Power the motor from an external supply through the ULN2003 board motor power in
 - `max_attempts`: maximum preview/correction loops per frame.
 - `pixels_per_motor_step`: calibration value used to convert detected error into motor steps.
 - `coarse_search_steps`: movement used when no frame boundary is detected.
+- `frame_guide_x`, `frame_guide_y`, `frame_guide_width`, `frame_guide_height`: preview overlay rectangle used to calibrate expected frame position.
+- `perf_roi_x`, `perf_roi_y`, `perf_roi_width`, `perf_roi_height`: preview overlay region for perforation detection calibration.
+- `perf_target_y`: preview overlay horizontal target line for the perforation center.
 
 ## Scan
 

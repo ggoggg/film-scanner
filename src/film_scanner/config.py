@@ -44,6 +44,15 @@ class AlignmentConfig:
     max_attempts: int = 12
     pixels_per_motor_step: float = 0.35
     coarse_search_steps: int = 32
+    frame_guide_x: int = 240
+    frame_guide_y: int = 120
+    frame_guide_width: int = 480
+    frame_guide_height: int = 480
+    perf_roi_x: int = 0
+    perf_roi_y: int = 120
+    perf_roi_width: int = 180
+    perf_roi_height: int = 480
+    perf_target_y: int = 360
 
 
 @dataclass

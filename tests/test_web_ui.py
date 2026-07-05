@@ -42,6 +42,15 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
             "alignment": {
                 "pixels_per_motor_step": 0.25,
                 "coarse_search_steps": 16,
+                "frame_guide_x": 10,
+                "frame_guide_y": 20,
+                "frame_guide_width": 300,
+                "frame_guide_height": 400,
+                "perf_roi_x": 30,
+                "perf_roi_y": 40,
+                "perf_roi_width": 50,
+                "perf_roi_height": 60,
+                "perf_target_y": 70,
             },
         }
     )
@@ -53,8 +62,14 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
     assert controller.config.motor.invert_direction is True
     assert controller.config.alignment.pixels_per_motor_step == 0.25
     assert controller.config.alignment.coarse_search_steps == 16
+    assert controller.config.alignment.frame_guide_x == 10
+    assert controller.config.alignment.frame_guide_width == 300
+    assert controller.config.alignment.perf_roi_x == 30
+    assert controller.config.alignment.perf_target_y == 70
 
     status = _status_payload(controller)
     assert status["config"]["motor"]["steps_per_frame"] == 321
     assert status["config"]["motor"]["invert_direction"] is True
     assert status["config"]["alignment"]["coarse_search_steps"] == 16
+    assert status["config"]["alignment"]["frame_guide_height"] == 400
+    assert status["config"]["alignment"]["perf_roi_height"] == 60
