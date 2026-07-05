@@ -37,8 +37,14 @@ HTML = """<!doctype html>
       --danger: #ff6b6b;
     }
     * { box-sizing: border-box; }
+    html {
+      height: 100%;
+      overflow: hidden;
+    }
     body {
       margin: 0;
+      height: 100%;
+      overflow: hidden;
       background: var(--bg);
       color: var(--text);
       font: 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -46,12 +52,15 @@ HTML = """<!doctype html>
     main {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 360px;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
     }
     .preview {
       display: grid;
       place-items: center;
-      min-height: 100vh;
+      min-height: 0;
+      height: 100vh;
+      overflow: hidden;
       background: #050607;
       padding: 16px;
     }
@@ -66,8 +75,11 @@ HTML = """<!doctype html>
     aside {
       border-left: 1px solid var(--line);
       background: var(--panel);
+      min-height: 0;
+      height: 100vh;
       padding: 16px;
-      overflow: auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
     h1 {
       margin: 0 0 16px;
@@ -142,9 +154,24 @@ HTML = """<!doctype html>
       overflow-wrap: anywhere;
     }
     @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      .preview { min-height: 55vh; }
-      aside { border-left: 0; border-top: 1px solid var(--line); }
+      html, body { overflow: auto; }
+      main {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+      }
+      .preview {
+        height: 55vh;
+        min-height: 320px;
+      }
+      aside {
+        height: auto;
+        max-height: none;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        overflow: visible;
+      }
     }
   </style>
 </head>
