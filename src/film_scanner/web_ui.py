@@ -687,12 +687,11 @@ HTML = """<!doctype html>
     });
 
     function refreshPreview() {
-      previewEl.src = `/preview.jpg?ts=${Date.now()}`;
+      previewEl.src = `/preview.mjpg?ts=${Date.now()}`;
     }
 
     previewEl.addEventListener("load", () => {
       drawOverlay();
-      setTimeout(refreshPreview, 750);
     });
     previewEl.addEventListener("error", () => setTimeout(refreshPreview, 1000));
     document.getElementById("showOverlay").addEventListener("change", drawOverlay);
@@ -722,6 +721,9 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/preview.jpg":
             self._send_preview()
+            return
+        if parsed.path == "/preview.mjpg":
+            self._send_preview_stream()
             return
         self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -842,6 +844,31 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             return
         self._send_bytes(jpeg, "image/jpeg", cache=False)
 
+    def _send_preview_stream(self) -> None:
+        boundary = "film-scanner-preview"
+        self.send_response(HTTPStatus.OK)
+        self.send_header("content-type", f"multipart/x-mixed-replace; boundary={boundary}")
+        self.send_header("cache-control", "no-store")
+        self.end_headers()
+
+        last_version = -1
+        while not self.server._preview_stop.is_set():
+            jpeg, error, version = self.server.wait_for_preview(last_version, timeout=2.0)
+            if jpeg is None:
+                if error:
+                    LOG.debug("Preview stream waiting: %s", error)
+                continue
+            last_version = version
+            try:
+                self.wfile.write(f"--{boundary}\r\n".encode("ascii"))
+                self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                self.wfile.write(f"Content-Length: {len(jpeg)}\r\n\r\n".encode("ascii"))
+                self.wfile.write(jpeg)
+                self.wfile.write(b"\r\n")
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                return
+
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
         self._send_bytes(json.dumps(payload).encode("utf-8"), "application/json", status=status, cache=False)
 
@@ -869,6 +896,7 @@ class FilmScannerWebServer(ThreadingHTTPServer):
         self._preview_condition = threading.Condition()
         self._preview_jpeg: bytes | None = None
         self._preview_error: str | None = "Preview is starting"
+        self._preview_version = 0
         self._preview_stop = threading.Event()
         self._preview_thread: threading.Thread | None = None
         self._preview_paused = False
@@ -891,6 +919,15 @@ class FilmScannerWebServer(ThreadingHTTPServer):
     def latest_preview(self) -> tuple[bytes | None, str | None]:
         with self._preview_lock:
             return self._preview_jpeg, self._preview_error
+
+    def wait_for_preview(self, last_version: int, timeout: float) -> tuple[bytes | None, str | None, int]:
+        with self._preview_condition:
+            self._preview_condition.wait_for(
+                lambda: self._preview_version != last_version or self._preview_stop.is_set(),
+                timeout=timeout,
+            )
+            with self._preview_lock:
+                return self._preview_jpeg, self._preview_error, self._preview_version
 
     def with_preview_paused(self, callback):
         with self._preview_condition:
@@ -918,10 +955,12 @@ class FilmScannerWebServer(ThreadingHTTPServer):
                 LOG.exception("Preview refresh failed")
                 with self._preview_lock:
                     self._preview_error = str(exc)
+                    self._preview_version += 1
             else:
                 with self._preview_lock:
                     self._preview_jpeg = jpeg
                     self._preview_error = None
+                    self._preview_version += 1
             finally:
                 with self._preview_condition:
                     self._preview_active = False
