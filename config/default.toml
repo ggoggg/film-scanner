@@ -5,6 +5,7 @@ direction_pin = 27
 enable_pin = 22
 microstep_pins = []
 coil_pins = [17, 27, 22, 23]
+invert_direction = false
 steps_per_frame = 240
 fine_step = 4
 speed_steps_per_second = 250

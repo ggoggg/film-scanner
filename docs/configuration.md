@@ -6,6 +6,7 @@ Configuration is stored in TOML. The default file is `config/default.toml`.
 
 - `driver`: `uln2003` for a 4-input ULN2003 board, or `step_dir` for a step/direction driver.
 - `coil_pins`: Raspberry Pi BCM GPIO pins connected to ULN2003 `IN1`, `IN2`, `IN3`, and `IN4`.
+- `invert_direction`: reverse the physical motor direction while keeping UI commands and logical position unchanged.
 - `step_pin`, `direction_pin`, `enable_pin`: Raspberry Pi BCM GPIO pins connected to a step/direction motor driver.
 - `microstep_pins`: optional GPIO pins for step/direction driver microstepping mode selection.
 - `steps_per_frame`: coarse movement between adjacent film frames.

@@ -101,9 +101,10 @@ class StepperMotor:
         if not self.enabled:
             self.initialize()
 
-        direction = Direction.FORWARD if signed_steps > 0 else Direction.REVERSE
+        requested_direction = Direction.FORWARD if signed_steps > 0 else Direction.REVERSE
+        direction = self._effective_direction(requested_direction)
         steps = abs(signed_steps)
-        LOG.info("Motor move %s steps %s", direction.name.lower(), steps)
+        LOG.info("Motor move %s steps %s", requested_direction.name.lower(), steps)
         self.moving = True
         try:
             if self._gpio is not None and not self._is_uln2003:
@@ -115,7 +116,7 @@ class StepperMotor:
                 self._sequence_steps(direction, steps)
             else:
                 self._pulse_steps(steps)
-            self.position_steps += direction.value * steps
+            self.position_steps += requested_direction.value * steps
             time.sleep(self.config.settle_ms / 1000)
         finally:
             self.moving = False
@@ -123,6 +124,11 @@ class StepperMotor:
     @property
     def _is_uln2003(self) -> bool:
         return self.config.driver.lower() == "uln2003"
+
+    def _effective_direction(self, direction: Direction) -> Direction:
+        if not self.config.invert_direction:
+            return direction
+        return Direction.REVERSE if direction is Direction.FORWARD else Direction.FORWARD
 
     def _gpio_pins(self) -> list[int]:
         if self._is_uln2003:

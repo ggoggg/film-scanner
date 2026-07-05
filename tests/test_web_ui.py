@@ -37,6 +37,7 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
                 "fine_step": 7,
                 "speed_steps_per_second": 123.5,
                 "settle_ms": 42,
+                "invert_direction": True,
             },
             "alignment": {
                 "pixels_per_motor_step": 0.25,
@@ -49,9 +50,11 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
     assert controller.config.motor.fine_step == 7
     assert controller.config.motor.speed_steps_per_second == 123.5
     assert controller.config.motor.settle_ms == 42
+    assert controller.config.motor.invert_direction is True
     assert controller.config.alignment.pixels_per_motor_step == 0.25
     assert controller.config.alignment.coarse_search_steps == 16
 
     status = _status_payload(controller)
     assert status["config"]["motor"]["steps_per_frame"] == 321
+    assert status["config"]["motor"]["invert_direction"] is True
     assert status["config"]["alignment"]["coarse_search_steps"] == 16

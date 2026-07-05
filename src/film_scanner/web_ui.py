@@ -127,6 +127,15 @@ HTML = """<!doctype html>
       color: var(--muted);
       margin-bottom: 10px;
     }
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .checkbox input {
+      width: auto;
+      min-height: 0;
+    }
     .message {
       min-height: 22px;
       color: var(--accent);
@@ -195,6 +204,10 @@ HTML = """<!doctype html>
         <label>Coarse search steps
           <input id="coarseSearchSteps" type="number" min="1" step="1">
         </label>
+        <label class="checkbox">
+          <input id="invertDirection" type="checkbox">
+          Invert direction
+        </label>
       </section>
       <section>
         <div class="controls">
@@ -242,6 +255,7 @@ HTML = """<!doctype html>
           document.getElementById("fineStep").value = data.config.motor.fine_step;
           document.getElementById("speedSteps").value = data.config.motor.speed_steps_per_second;
           document.getElementById("settleMs").value = data.config.motor.settle_ms;
+          document.getElementById("invertDirection").checked = data.config.motor.invert_direction;
           document.getElementById("pixelsPerMotorStep").value = data.config.alignment.pixels_per_motor_step;
           document.getElementById("coarseSearchSteps").value = data.config.alignment.coarse_search_steps;
         }
@@ -291,7 +305,8 @@ HTML = """<!doctype html>
           steps_per_frame: Number(document.getElementById("stepsPerFrame").value || 1),
           fine_step: Number(document.getElementById("fineStep").value || 1),
           speed_steps_per_second: Number(document.getElementById("speedSteps").value || 1),
-          settle_ms: Number(document.getElementById("settleMs").value || 0)
+          settle_ms: Number(document.getElementById("settleMs").value || 0),
+          invert_direction: document.getElementById("invertDirection").checked
         },
         alignment: {
           pixels_per_motor_step: Number(document.getElementById("pixelsPerMotorStep").value || 0.001),
@@ -417,6 +432,8 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             config.motor.speed_steps_per_second = max(float(motor["speed_steps_per_second"]), 1.0)
         if "settle_ms" in motor:
             config.motor.settle_ms = max(int(motor["settle_ms"]), 0)
+        if "invert_direction" in motor:
+            config.motor.invert_direction = bool(motor["invert_direction"])
         if "pixels_per_motor_step" in alignment:
             config.alignment.pixels_per_motor_step = max(float(alignment["pixels_per_motor_step"]), 0.001)
         if "coarse_search_steps" in alignment:
@@ -536,6 +553,7 @@ def _status_payload(controller: ScannerController) -> dict:
                 "fine_step": controller.config.motor.fine_step,
                 "speed_steps_per_second": controller.config.motor.speed_steps_per_second,
                 "settle_ms": controller.config.motor.settle_ms,
+                "invert_direction": controller.config.motor.invert_direction,
             },
             "alignment": {
                 "pixels_per_motor_step": controller.config.alignment.pixels_per_motor_step,

@@ -65,6 +65,28 @@ def test_uln2003_move_uses_half_step_sequence() -> None:
     assert motor.position_steps == 2
 
 
+def test_uln2003_invert_direction_reverses_sequence_but_not_logical_position() -> None:
+    gpio = FakeGPIO()
+    motor = StepperMotor(
+        MotorConfig(
+            driver="uln2003",
+            coil_pins=[17, 27, 22, 23],
+            invert_direction=True,
+            speed_steps_per_second=1000,
+        ),
+        simulate=True,
+    )
+    motor._gpio = gpio
+    motor.simulated = False
+    motor.initialize()
+    gpio.outputs.clear()
+
+    motor.jog(Direction.FORWARD, steps=1)
+
+    assert gpio.outputs[:4] == [(17, 1), (27, 0), (22, 0), (23, 1)]
+    assert motor.position_steps == 1
+
+
 def test_step_dir_driver_keeps_existing_pin_setup() -> None:
     gpio = FakeGPIO()
     config = MotorConfig(driver="step_dir", step_pin=5, direction_pin=6, enable_pin=13, microstep_pins=[19, 26])
@@ -76,3 +98,18 @@ def test_step_dir_driver_keeps_existing_pin_setup() -> None:
 
     assert gpio.setup_pins == [(5, "OUT"), (6, "OUT"), (13, "OUT"), (19, "OUT"), (26, "OUT")]
     assert gpio.outputs == [(13, 0)]
+
+
+def test_step_dir_invert_direction_reverses_direction_pin() -> None:
+    gpio = FakeGPIO()
+    config = MotorConfig(driver="step_dir", step_pin=5, direction_pin=6, enable_pin=None, invert_direction=True)
+    motor = StepperMotor(config, simulate=True)
+    motor._gpio = gpio
+    motor.simulated = False
+    motor.initialize()
+    gpio.outputs.clear()
+
+    motor.jog(Direction.FORWARD, steps=1)
+
+    assert gpio.outputs[0] == (6, 0)
+    assert motor.position_steps == 1

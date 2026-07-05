@@ -17,6 +17,7 @@ class MotorConfig:
     enable_pin: int | None = 22
     microstep_pins: list[int] = field(default_factory=list)
     coil_pins: list[int] = field(default_factory=lambda: [17, 27, 22, 23])
+    invert_direction: bool = False
     steps_per_frame: int = 240
     fine_step: int = 4
     speed_steps_per_second: float = 450.0
