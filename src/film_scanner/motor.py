@@ -24,6 +24,17 @@ class MotorStatus:
 
 
 class StepperMotor:
+    ULN2003_SEQUENCE = (
+        (1, 0, 0, 0),
+        (1, 1, 0, 0),
+        (0, 1, 0, 0),
+        (0, 1, 1, 0),
+        (0, 0, 1, 0),
+        (0, 0, 1, 1),
+        (0, 0, 0, 1),
+        (1, 0, 0, 1),
+    )
+
     def __init__(self, config: MotorConfig, simulate: bool = False) -> None:
         self.config = config
         self.position_steps = 0
@@ -31,6 +42,7 @@ class StepperMotor:
         self.moving = False
         self.simulated = simulate
         self._gpio = None
+        self._sequence_index = 0
 
         if not simulate:
             try:
@@ -45,22 +57,23 @@ class StepperMotor:
         if self._gpio is not None:
             gpio = self._gpio
             gpio.setmode(gpio.BCM)
-            pins = [self.config.step_pin, self.config.direction_pin]
-            if self.config.enable_pin is not None:
-                pins.append(self.config.enable_pin)
-            pins.extend(self.config.microstep_pins)
+            pins = self._gpio_pins()
             for pin in pins:
                 gpio.setup(pin, gpio.OUT)
-            if self.config.enable_pin is not None:
+            if self._is_uln2003:
+                self._release_coils()
+            elif self.config.enable_pin is not None:
                 gpio.output(self.config.enable_pin, gpio.LOW)
         self.enabled = True
-        LOG.info("Motor initialized")
+        LOG.info("Motor initialized using %s driver", self.config.driver)
 
     def shutdown(self) -> None:
         self.moving = False
         self.enabled = False
         if self._gpio is not None:
-            if self.config.enable_pin is not None:
+            if self._is_uln2003:
+                self._release_coils()
+            elif self.config.enable_pin is not None:
                 self._gpio.output(self.config.enable_pin, self._gpio.HIGH)
             self._gpio.cleanup()
         LOG.info("Motor shut down at position %s", self.position_steps)
@@ -93,16 +106,51 @@ class StepperMotor:
         LOG.info("Motor move %s steps %s", direction.name.lower(), steps)
         self.moving = True
         try:
-            if self._gpio is not None:
+            if self._gpio is not None and not self._is_uln2003:
                 self._gpio.output(
                     self.config.direction_pin,
                     self._gpio.HIGH if direction is Direction.FORWARD else self._gpio.LOW,
                 )
-            self._pulse_steps(steps)
+            if self._is_uln2003:
+                self._sequence_steps(direction, steps)
+            else:
+                self._pulse_steps(steps)
             self.position_steps += direction.value * steps
             time.sleep(self.config.settle_ms / 1000)
         finally:
             self.moving = False
+
+    @property
+    def _is_uln2003(self) -> bool:
+        return self.config.driver.lower() == "uln2003"
+
+    def _gpio_pins(self) -> list[int]:
+        if self._is_uln2003:
+            if len(self.config.coil_pins) != 4:
+                raise ValueError("ULN2003 driver requires exactly four coil_pins")
+            return list(self.config.coil_pins)
+
+        pins = [self.config.step_pin, self.config.direction_pin]
+        if self.config.enable_pin is not None:
+            pins.append(self.config.enable_pin)
+        pins.extend(self.config.microstep_pins)
+        return pins
+
+    def _release_coils(self) -> None:
+        if self._gpio is None:
+            return
+        for pin in self.config.coil_pins:
+            self._gpio.output(pin, self._gpio.LOW)
+
+    def _sequence_steps(self, direction: Direction, steps: int) -> None:
+        interval = 1.0 / max(self.config.speed_steps_per_second, 1.0)
+        for _ in range(steps):
+            self._sequence_index = (self._sequence_index + direction.value) % len(self.ULN2003_SEQUENCE)
+            if self._gpio is not None:
+                pattern = self.ULN2003_SEQUENCE[self._sequence_index]
+                for pin, value in zip(self.config.coil_pins, pattern):
+                    self._gpio.output(pin, self._gpio.HIGH if value else self._gpio.LOW)
+            time.sleep(min(interval, 0.01) if self._gpio is None else interval)
 
     def _pulse_steps(self, steps: int) -> None:
         min_interval = 1.0 / max(self.config.speed_steps_per_second, 1.0)

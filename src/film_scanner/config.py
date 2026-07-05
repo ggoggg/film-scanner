@@ -11,10 +11,12 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
 
 @dataclass
 class MotorConfig:
+    driver: str = "uln2003"
     step_pin: int = 17
     direction_pin: int = 27
     enable_pin: int | None = 22
     microstep_pins: list[int] = field(default_factory=list)
+    coil_pins: list[int] = field(default_factory=lambda: [17, 27, 22, 23])
     steps_per_frame: int = 240
     fine_step: int = 4
     speed_steps_per_second: float = 450.0

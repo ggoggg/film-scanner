@@ -1,11 +1,13 @@
 [motor]
+driver = "uln2003"
 step_pin = 17
 direction_pin = 27
 enable_pin = 22
 microstep_pins = []
+coil_pins = [17, 27, 22, 23]
 steps_per_frame = 240
 fine_step = 4
-speed_steps_per_second = 450
+speed_steps_per_second = 250
 acceleration_steps_per_second2 = 900
 settle_ms = 80
 

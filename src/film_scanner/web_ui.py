@@ -174,6 +174,27 @@ HTML = """<!doctype html>
         </div>
       </section>
       <section>
+        <h2>Motor</h2>
+        <label>Steps per frame
+          <input id="stepsPerFrame" type="number" min="1" step="1">
+        </label>
+        <label>Fine step
+          <input id="fineStep" type="number" min="1" step="1">
+        </label>
+        <label>Speed steps / second
+          <input id="speedSteps" type="number" min="1" step="1">
+        </label>
+        <label>Settle ms
+          <input id="settleMs" type="number" min="0" step="1">
+        </label>
+        <label>Pixels / motor step
+          <input id="pixelsPerMotorStep" type="number" min="0.001" step="0.001">
+        </label>
+        <label>Coarse search steps
+          <input id="coarseSearchSteps" type="number" min="1" step="1">
+        </label>
+      </section>
+      <section>
         <div class="controls">
           <button data-jog="forward">Forward</button>
           <button data-jog="reverse">Reverse</button>
@@ -215,6 +236,12 @@ HTML = """<!doctype html>
           document.getElementById("namingPattern").value = data.config.scan.naming_pattern;
           document.getElementById("imageFormat").value = data.config.camera.format;
           document.getElementById("maxFrames").value = data.config.scan.max_frames;
+          document.getElementById("stepsPerFrame").value = data.config.motor.steps_per_frame;
+          document.getElementById("fineStep").value = data.config.motor.fine_step;
+          document.getElementById("speedSteps").value = data.config.motor.speed_steps_per_second;
+          document.getElementById("settleMs").value = data.config.motor.settle_ms;
+          document.getElementById("pixelsPerMotorStep").value = data.config.alignment.pixels_per_motor_step;
+          document.getElementById("coarseSearchSteps").value = data.config.alignment.coarse_search_steps;
         }
       } catch (error) {
         messageEl.textContent = error;
@@ -235,18 +262,20 @@ HTML = """<!doctype html>
     document.querySelectorAll("[data-action]").forEach((button) => {
       button.addEventListener("click", () => {
         const action = button.dataset.action;
-        const config = captureConfig();
+        const config = scannerConfig();
         if (action === "apply-config") {
           post("/api/config", config);
         } else if (action === "start") {
           post("/api/start", config);
+        } else if (action === "capture") {
+          post("/api/capture", config);
         } else {
           post(`/api/${action}`, {});
         }
       });
     });
 
-    function captureConfig() {
+    function scannerConfig() {
       return {
         scan: {
           output_directory: document.getElementById("outputDirectory").value,
@@ -255,6 +284,16 @@ HTML = """<!doctype html>
         },
         camera: {
           format: document.getElementById("imageFormat").value
+        },
+        motor: {
+          steps_per_frame: Number(document.getElementById("stepsPerFrame").value || 1),
+          fine_step: Number(document.getElementById("fineStep").value || 1),
+          speed_steps_per_second: Number(document.getElementById("speedSteps").value || 1),
+          settle_ms: Number(document.getElementById("settleMs").value || 0)
+        },
+        alignment: {
+          pixels_per_motor_step: Number(document.getElementById("pixelsPerMotorStep").value || 0.001),
+          coarse_search_steps: Number(document.getElementById("coarseSearchSteps").value || 1)
         }
       };
     }
@@ -263,7 +302,10 @@ HTML = """<!doctype html>
       button.addEventListener("click", () => {
         const fine = button.dataset.jog.startsWith("fine-");
         const direction = button.dataset.jog.endsWith("reverse") ? "reverse" : "forward";
-        post("/api/jog", { direction, fine });
+        const config = scannerConfig();
+        config.direction = direction;
+        config.fine = fine;
+        post("/api/jog", config);
       });
     });
 
@@ -324,6 +366,8 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"message": "Scan stop requested"})
                 return
             if parsed.path == "/api/capture":
+                body = self._read_json()
+                self._apply_config(body)
                 path = self.server.controller.capture_single()
                 self._send_json({"message": f"Captured {path}"})
                 return
@@ -333,6 +377,7 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/jog":
                 body = self._read_json()
+                self._apply_config(body)
                 direction = Direction.REVERSE if body.get("direction") == "reverse" else Direction.FORWARD
                 self.server.controller.manual_jog(direction, fine=bool(body.get("fine", True)))
                 self._send_json({"message": "Manual move complete"})
@@ -347,6 +392,8 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
         config = self.server.controller.config
         scan = body.get("scan", {})
         camera = body.get("camera", {})
+        motor = body.get("motor", {})
+        alignment = body.get("alignment", {})
         if "output_directory" in scan:
             config.scan.output_directory = str(scan["output_directory"])
         if "naming_pattern" in scan:
@@ -358,6 +405,18 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             if image_format not in {"png", "tiff", "jpg", "jpeg"}:
                 raise ValueError(f"Unsupported image format: {image_format}")
             config.camera.format = image_format
+        if "steps_per_frame" in motor:
+            config.motor.steps_per_frame = max(int(motor["steps_per_frame"]), 1)
+        if "fine_step" in motor:
+            config.motor.fine_step = max(int(motor["fine_step"]), 1)
+        if "speed_steps_per_second" in motor:
+            config.motor.speed_steps_per_second = max(float(motor["speed_steps_per_second"]), 1.0)
+        if "settle_ms" in motor:
+            config.motor.settle_ms = max(int(motor["settle_ms"]), 0)
+        if "pixels_per_motor_step" in alignment:
+            config.alignment.pixels_per_motor_step = max(float(alignment["pixels_per_motor_step"]), 0.001)
+        if "coarse_search_steps" in alignment:
+            config.alignment.coarse_search_steps = max(int(alignment["coarse_search_steps"]), 1)
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("content-length", "0"))
@@ -422,6 +481,17 @@ def _status_payload(controller: ScannerController) -> dict:
             },
             "camera": {
                 "format": controller.config.camera.format,
+            },
+            "motor": {
+                "driver": controller.config.motor.driver,
+                "steps_per_frame": controller.config.motor.steps_per_frame,
+                "fine_step": controller.config.motor.fine_step,
+                "speed_steps_per_second": controller.config.motor.speed_steps_per_second,
+                "settle_ms": controller.config.motor.settle_ms,
+            },
+            "alignment": {
+                "pixels_per_motor_step": controller.config.alignment.pixels_per_motor_step,
+                "coarse_search_steps": controller.config.alignment.coarse_search_steps,
             },
         },
     }

@@ -4,7 +4,7 @@ The scanner is organized as small modules that can be tested without Raspberry P
 
 ## Modules
 
-- `film_scanner.motor`: GPIO step, direction, enable, manual jog, acceleration ramping, and shutdown.
+- `film_scanner.motor`: GPIO motor control for ULN2003 4-coil sequencing or step/direction drivers, manual jog, acceleration ramping, and shutdown.
 - `film_scanner.camera`: Picamera2 integration, preview capture, still capture, and simulated captures.
 - `film_scanner.vision`: frame boundary detection and iterative frame alignment.
 - `film_scanner.storage`: sequential file naming, output directory creation, and overwrite prevention.
