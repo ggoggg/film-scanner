@@ -8,6 +8,8 @@ import argparse
 import io
 import json
 import logging
+import threading
+import time
 
 from .config import AppConfig, load_config
 from .logging_setup import configure_logging
@@ -313,7 +315,7 @@ HTML = """<!doctype html>
       previewEl.src = `/preview.jpg?ts=${Date.now()}`;
     }
 
-    previewEl.addEventListener("load", () => setTimeout(refreshPreview, 250));
+    previewEl.addEventListener("load", () => setTimeout(refreshPreview, 750));
     previewEl.addEventListener("error", () => setTimeout(refreshPreview, 1000));
     refreshPreview();
     refreshStatus();
@@ -350,7 +352,7 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 body = self._read_json()
                 self._apply_config(body)
                 max_frames = int(body.get("scan", {}).get("max_frames") or body.get("max_frames") or 0) or None
-                self.server.controller.start(max_frames=max_frames)
+                self.server.with_preview_paused(lambda: self.server.controller.start(max_frames=max_frames))
                 self._send_json({"message": "Scan started"})
                 return
             if parsed.path == "/api/pause":
@@ -368,7 +370,7 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/capture":
                 body = self._read_json()
                 self._apply_config(body)
-                path = self.server.controller.capture_single()
+                path = self.server.with_preview_paused(self.server.controller.capture_single)
                 self._send_json({"message": f"Captured {path}"})
                 return
             if parsed.path == "/api/config":
@@ -379,7 +381,9 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 body = self._read_json()
                 self._apply_config(body)
                 direction = Direction.REVERSE if body.get("direction") == "reverse" else Direction.FORWARD
-                self.server.controller.manual_jog(direction, fine=bool(body.get("fine", True)))
+                self.server.with_preview_paused(
+                    lambda: self.server.controller.manual_jog(direction, fine=bool(body.get("fine", True)))
+                )
                 self._send_json({"message": "Manual move complete"})
                 return
         except Exception as exc:
@@ -429,11 +433,9 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
             return {key: values[-1] for key, values in parse_qs(raw).items()}
 
     def _send_preview(self) -> None:
-        try:
-            jpeg = _preview_jpeg(self.server.controller)
-        except Exception as exc:
-            LOG.exception("Preview request failed")
-            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+        jpeg, error = self.server.latest_preview()
+        if jpeg is None:
+            self.send_error(HTTPStatus.SERVICE_UNAVAILABLE, error or "Preview is not ready")
             return
         self._send_bytes(jpeg, "image/jpeg", cache=False)
 
@@ -460,6 +462,52 @@ class FilmScannerWebServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], config: AppConfig, simulate: bool = False) -> None:
         super().__init__(address, FilmScannerWebHandler)
         self.controller = ScannerController(config, simulate=simulate)
+        self._preview_lock = threading.Lock()
+        self._preview_jpeg: bytes | None = None
+        self._preview_error: str | None = "Preview is starting"
+        self._preview_stop = threading.Event()
+        self._preview_thread: threading.Thread | None = None
+        self._preview_pause_until = 0.0
+
+    def start_preview(self) -> None:
+        if self._preview_thread is not None and self._preview_thread.is_alive():
+            return
+        self._preview_stop.clear()
+        self._preview_thread = threading.Thread(target=self._preview_loop, name="film-web-preview", daemon=True)
+        self._preview_thread.start()
+
+    def stop_preview(self) -> None:
+        self._preview_stop.set()
+        if self._preview_thread is not None:
+            self._preview_thread.join(timeout=2)
+
+    def latest_preview(self) -> tuple[bytes | None, str | None]:
+        with self._preview_lock:
+            return self._preview_jpeg, self._preview_error
+
+    def with_preview_paused(self, callback):
+        with self._preview_lock:
+            self._preview_pause_until = time.monotonic() + 1.0
+        return callback()
+
+    def _preview_loop(self) -> None:
+        while not self._preview_stop.is_set():
+            with self._preview_lock:
+                pause_for = self._preview_pause_until - time.monotonic()
+            if pause_for > 0:
+                self._preview_stop.wait(min(pause_for, 0.25))
+                continue
+            try:
+                jpeg = _preview_jpeg(self.controller)
+            except Exception as exc:  # pragma: no cover - hardware dependent
+                LOG.exception("Preview refresh failed")
+                with self._preview_lock:
+                    self._preview_error = str(exc)
+            else:
+                with self._preview_lock:
+                    self._preview_jpeg = jpeg
+                    self._preview_error = None
+            self._preview_stop.wait(0.5)
 
 
 def _status_payload(controller: ScannerController) -> dict:
@@ -528,6 +576,7 @@ def main() -> None:
     server = FilmScannerWebServer((args.host, args.port), load_config(args.config), simulate=args.simulate)
     try:
         server.controller.initialize()
+        server.start_preview()
         host = "localhost" if args.host in {"", "0.0.0.0"} else args.host
         LOG.info("Film scanner web UI running at http://%s:%s", host, args.port)
         print(f"Film scanner web UI running at http://{host}:{args.port}")
@@ -535,6 +584,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        server.stop_preview()
         server.controller.shutdown()
         server.server_close()
 
