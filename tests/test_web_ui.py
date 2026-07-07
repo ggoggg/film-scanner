@@ -19,11 +19,15 @@ class FakeHandler:
 class FakeController:
     def __init__(self) -> None:
         self.config = AppConfig()
+        self.apply_runtime_config_calls = 0
 
     def snapshot(self):
         from film_scanner.workflow import ScanStatus
 
         return ScanStatus()
+
+    def apply_runtime_config(self) -> None:
+        self.apply_runtime_config_calls += 1
 
 
 def test_web_config_updates_motor_and_alignment_settings() -> None:
@@ -60,6 +64,7 @@ def test_web_config_updates_motor_and_alignment_settings() -> None:
     )
 
     assert controller.config.motor.steps_per_frame == 321
+    assert controller.apply_runtime_config_calls == 1
     assert controller.config.motor.fine_step == 7
     assert controller.config.motor.speed_steps_per_second == 123.5
     assert controller.config.motor.settle_ms == 42

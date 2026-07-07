@@ -757,7 +757,7 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/api/config":
                 self._apply_config(self._read_json())
-                self._send_json({"message": "Capture settings applied"})
+                self._send_json({"message": "Settings applied"})
                 return
             if parsed.path == "/api/jog":
                 body = self._read_json()
@@ -827,6 +827,7 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
         ):
             if key in alignment:
                 setattr(config.alignment, key, max(int(alignment[key]), 1))
+        self.server.controller.apply_runtime_config()
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("content-length", "0"))

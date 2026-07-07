@@ -99,6 +99,23 @@ class ScannerController:
                 errors=list(self.status.errors),
             )
 
+    def apply_runtime_config(self) -> None:
+        self.motor.config = self.config.motor
+        self.detector.config = self.config.alignment
+        self.aligner.config = self.config.alignment
+        self.store.scan_config = self.config.scan
+        self.store.camera_config = self.config.camera
+        with self._lock:
+            self.status.message = "Configuration applied"
+        LOG.info(
+            "Runtime configuration applied: steps_per_frame=%s fine_step=%s speed=%.2f settle_ms=%s invert=%s",
+            self.config.motor.steps_per_frame,
+            self.config.motor.fine_step,
+            self.config.motor.speed_steps_per_second,
+            self.config.motor.settle_ms,
+            self.config.motor.invert_direction,
+        )
+
     def start(self, max_frames: int | None = None) -> None:
         if self._worker and self._worker.is_alive():
             return
