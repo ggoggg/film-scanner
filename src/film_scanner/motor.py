@@ -65,7 +65,12 @@ class StepperMotor:
             elif self.config.enable_pin is not None:
                 gpio.output(self.config.enable_pin, gpio.LOW)
         self.enabled = True
-        LOG.info("Motor initialized using %s driver", self.config.driver)
+        LOG.info(
+            "Motor initialized using %s driver pins=%s simulated=%s",
+            self.config.driver,
+            self._gpio_pins(),
+            self.simulated,
+        )
 
     def shutdown(self) -> None:
         self.moving = False
@@ -104,7 +109,13 @@ class StepperMotor:
         requested_direction = Direction.FORWARD if signed_steps > 0 else Direction.REVERSE
         direction = self._effective_direction(requested_direction)
         steps = abs(signed_steps)
-        LOG.info("Motor move %s steps %s", requested_direction.name.lower(), steps)
+        LOG.info(
+            "Motor move %s steps %s effective=%s simulated=%s",
+            requested_direction.name.lower(),
+            steps,
+            direction.name.lower(),
+            self.simulated,
+        )
         self.moving = True
         try:
             if self._gpio is not None and not self._is_uln2003:

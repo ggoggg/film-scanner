@@ -763,7 +763,8 @@ class FilmScannerWebHandler(BaseHTTPRequestHandler):
                 body = self._read_json()
                 self._apply_config(body)
                 direction = Direction.REVERSE if body.get("direction") == "reverse" else Direction.FORWARD
-                self.server.with_preview_paused(
+                LOG.info("Web jog request direction=%s fine=%s", direction.name.lower(), bool(body.get("fine", True)))
+                self.server.with_preview_suspended(
                     lambda: self.server.controller.manual_jog(direction, fine=bool(body.get("fine", True)))
                 )
                 self._send_json({"message": "Manual move complete"})
@@ -934,6 +935,16 @@ class FilmScannerWebServer(ThreadingHTTPServer):
             self._preview_paused = True
             while self._preview_active and not self._preview_stop.is_set():
                 self._preview_condition.wait(timeout=0.1)
+        try:
+            return callback()
+        finally:
+            with self._preview_condition:
+                self._preview_paused = False
+                self._preview_condition.notify_all()
+
+    def with_preview_suspended(self, callback):
+        with self._preview_condition:
+            self._preview_paused = True
         try:
             return callback()
         finally:
