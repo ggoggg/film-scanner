@@ -8,7 +8,7 @@
 
 ```bash
 sudo apt update
-sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil.imagetk python3-opencv python3-numpy
+sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil python3-pil.imagetk python3-opencv python3-numpy
 ```
 
 4. Create a virtual environment that can see Raspberry Pi OS camera bindings:

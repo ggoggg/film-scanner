@@ -26,7 +26,7 @@ film-scanner-ui --simulate
 Install Raspberry Pi camera packages, create a venv that can see them, then install the project:
 
 ```bash
-sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil.imagetk python3-opencv python3-numpy
+sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil python3-pil.imagetk python3-opencv python3-numpy
 python3 -m venv --system-site-packages env
 source env/bin/activate
 python3 -m pip install -e ".[pi,vision]"

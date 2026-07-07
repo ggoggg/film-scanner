@@ -7,9 +7,7 @@ name = "film-scanner"
 version = "0.1.0"
 description = "Frame-by-frame 8 mm film digitization system for Raspberry Pi"
 requires-python = ">=3.10"
-dependencies = [
-  "Pillow>=10",
-]
+dependencies = []
 
 [project.optional-dependencies]
 pi = [
