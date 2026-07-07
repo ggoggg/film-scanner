@@ -4,11 +4,11 @@
 
 1. Install Raspberry Pi OS with camera support enabled.
 2. Connect the stepper driver pins defined in `config/default.toml`.
-3. Install system packages needed by camera, libcamera, and GPIO Python modules:
+3. Install system packages needed by camera, libcamera, GPIO, and OpenCV:
 
 ```bash
 sudo apt update
-sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil.imagetk
+sudo apt install libcap-dev python3-libcamera python3-picamera2 python3-pil.imagetk python3-opencv python3-numpy
 ```
 
 4. Create a virtual environment that can see Raspberry Pi OS camera bindings:
@@ -52,5 +52,5 @@ film-scanner-ui --simulate
 
 Optional packages:
 
-- `opencv-python` and `numpy` enable real frame detection.
+- `python3-opencv` and `python3-numpy` from apt enable real frame detection on Raspberry Pi.
 - `pytest` runs the test suite.
