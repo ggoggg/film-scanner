@@ -21,6 +21,20 @@ film-scanner --simulate --frames 5
 film-scanner-ui --simulate
 ```
 
+Move only the stepper motor by providing a step count, speed (steps/second), and direction:
+
+```bash
+film-stepper --steps 200 --speed 400 -d f
+film-stepper --steps 50 --speed 100 -d r --simulate
+```
+
+The utility can also be run directly from a source checkout without installation
+or `PYTHONPATH`:
+
+```bash
+python3 src/film_scanner/stepper_cli.py --steps 200 --speed 400 -d f
+```
+
 ## Quick start on Raspberry Pi
 
 Install Raspberry Pi camera packages, create a venv that can see them, then install the project:

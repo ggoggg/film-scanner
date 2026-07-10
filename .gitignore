@@ -6,3 +6,4 @@ venv/
 logs/
 scans/
 *.egg-info/
+env/
